@@ -1,0 +1,31 @@
+version: 1
+kind: dzen_guru_empirical
+default_enabled: true
+enforcement: soft
+
+typography:
+  em_dash_target: 0
+  en_dash_max_per_article: 5
+  quotes: "«ёлочки»"
+  blank_lines_between_paragraphs: false
+
+rhythm:
+  short_sentence_words: [1, 6]
+  medium_sentence_words: [7, 10]
+  long_sentence_words_min: 11
+  max_short_in_row: 2
+  max_long_in_row: 1
+  conjunction_start_ratio: [0.20, 0.30]
+
+language:
+  anti_ai_slop:
+    "однако": "но"
+    "затем": "потом"
+    "является": "это"
+    "данный": "этот"
+    "осуществлять": "делать"
+    "стоит отметить": null
+    "в современном мире": null
+
+retention:
+  microhook_target_chars: [1300, 2200]

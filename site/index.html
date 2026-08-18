@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0b1020">
+  <meta name="description" content="DzenDzen Lab: генератор локального сборщика метаданных Дзен-каналов, анализ CSV и проверка текста по эмпирическим правилам.">
+  <title>DzenDzen Lab</title>
+  <link rel="stylesheet" href="./assets/style.css">
+</head>
+<body>
+  <header class="hero">
+    <div class="wrap">
+      <div class="badge">DzenDzen Lab · локальные инструменты</div>
+      <h1>Исследуем Дзен без магии</h1>
+      <p class="lead">Вставь ссылки на каналы, скачай готовый локальный сборщик, потом загрузи CSV обратно на эту страницу для анализа. Данные формы и CSV не отправляются на сервер: GitHub Pages — статический сайт.</p>
+      <div class="hero-actions">
+        <a class="button secondary" href="#collector">Собрать данные</a>
+        <a class="button ghost" href="#analysis">Анализ CSV</a>
+        <a class="button ghost" href="#style">Проверка текста</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="panel" id="collector">
+      <div class="section-head">
+        <div>
+          <span class="eyebrow">01 · LOCAL COLLECTOR</span>
+          <h2>Скачать сборщик под свои каналы</h2>
+        </div>
+        <span class="pill safe">без логина</span>
+      </div>
+
+      <label for="channels">Ссылки или слаги каналов, по одному на строку</label>
+      <textarea id="channels" rows="8" placeholder="https://dzen.ru/worldlord&#10;https://dzen.ru/id/684ea66733562a4b41c6e5cd&#10;another_channel"></textarea>
+
+      <div class="grid three">
+        <label class="field"><span>Период, дней</span><input id="days" type="number" min="1" max="365" value="60"></label>
+        <label class="field"><span>Макс. страниц</span><input id="maxPages" type="number" min="1" max="100" value="30"></label>
+        <label class="check"><input id="headless" type="checkbox"><span><strong>Скрытый браузер</strong><small>Первый запуск лучше оставить выключенным.</small></span></label>
+      </div>
+
+      <div id="collectorStatus" class="status muted">Добавь хотя бы один канал.</div>
+      <div class="actions">
+        <button class="button primary" id="downloadPack">Скачать готовый комплект ZIP</button>
+        <button class="button secondary" id="downloadPy">Только Python-скрипт</button>
+        <a class="button ghost" href="./downloads/dzen_collect_template.py" download>Чистый шаблон</a>
+      </div>
+
+      <details><summary>Что произойдёт локально?</summary><p>Комплект содержит Python-скрипт и лаунчеры. Windows-лаунчер создаёт отдельное <code>.venv</code>, ставит Playwright и Chromium, после чего запускает сбор. Скрипт открывает публичные страницы каналов и обращается к JSON из контекста <code>dzen.ru</code>. При CAPTCHA/403/не-JSON он останавливается без обхода защиты.</p></details>
+    </section>
+
+    <section class="panel" id="analysis">
+      <div class="section-head"><div><span class="eyebrow">02 · DATASET</span><h2>Анализ результата</h2></div><span class="pill local">в браузере</span></div>
+      <p>Загрузи <code>all_articles.csv</code> из папки <code>results</code>. Мы сравним статьи только с публикациями сопоставимого возраста и посчитаем устойчивый performance score через median/MAD.</p>
+      <label class="drop" for="csvFile"><input id="csvFile" type="file" accept=".csv,text/csv"><span>Выбрать CSV</span><small>Файл читается локально через File API.</small></label>
+      <div id="datasetStats" class="stats"></div>
+      <div class="table-wrap"><table id="resultsTable" hidden><thead><tr><th>Score</th><th>Возраст</th><th>Счётчик</th><th>Канал</th><th>Заголовок</th></tr></thead><tbody></tbody></table></div>
+      <div class="actions"><button class="button secondary" id="downloadScored" disabled>Скачать scored CSV</button></div>
+    </section>
+
+    <section class="panel" id="style">
+      <div class="section-head"><div><span class="eyebrow">03 · DZEN.GURU EMPIRICAL</span><h2>Детерминированная проверка текста</h2></div><span class="pill warn">soft rules</span></div>
+      <p>Это не «официальный AI-детектор». Проверка реализует измеримые эмпирические эвристики из подарочных материалов: ритм предложений, тире, союзы в начале, типичные LLM-штампы и стартовый prior по длине.</p>
+      <textarea id="articleText" rows="12" placeholder="Вставь сюда черновик статьи..."></textarea>
+      <div class="actions"><button class="button primary" id="analyzeText">Проверить текст</button></div>
+      <div id="styleMetrics" class="stats"></div><div id="styleWarnings"></div>
+    </section>
+
+    <section class="panel" id="rules">
+      <span class="eyebrow">04 · POLICY</span><h2>Как проект трактует правила</h2>
+      <div class="rule-grid">
+        <article><strong>Official Dzen</strong><p>Hard gates: кликбейт как обман ожиданий, накрутки, неоригинальный/незаконный контент и другие актуальные требования.</p></article>
+        <article><strong>dzen.guru empirical</strong><p>Включены по умолчанию, но как soft warnings: <code>— = 0</code>, <code>– ≤ 5</code>, ритм, союзы 20–30%, антишлак, микрокрючки.</p></article>
+        <article><strong>Learned</strong><p>Позже заменяем чужие priors собственными результатами: заголовки, длина, темы и структура оцениваются по данным конкретного канала.</p></article>
+      </div>
+    </section>
+  </main>
+
+  <footer><div class="wrap footer-row"><span>DzenDzen · research tooling</span><a href="https://github.com/LuwnFM/Dzen">GitHub</a></div></footer>
+  <script src="./assets/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+version: 2026-08-18
+kind: official_baseline
+note: "Краткий технический baseline; не заменяет полный текст правил Дзена."
+
+hard_gates:
+  clickbait:
+    rule: "Карточка не должна обманывать ожидания пользователя."
+    action: block_or_manual_review
+  artificial_inflation:
+    rule: "Не накручивать просмотры, дочитывания, клики или подписчиков."
+    action: block
+  non_original_content:
+    rule: "Не публиковать копипаст и контент с нарушением авторских прав."
+    action: block_or_manual_review
+  spam:
+    action: block_or_manual_review
+  illegal_content:
+    action: block
+  shocking_content:
+    action: manual_review
+  medical:
+    action: strict_review
+
+automation:
+  no_view_or_click_automation: true
+  no_captcha_bypass: true
+  no_restriction_bypass: true
