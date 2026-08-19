@@ -1,6 +1,9 @@
+import asyncio
 import importlib.util
 from pathlib import Path
 from datetime import timezone
+
+import pytest
 
 MODULE_PATH = Path(__file__).parents[1] / "collector" / "dzen_collect.py"
 spec = importlib.util.spec_from_file_location("dzen_collect", MODULE_PATH)
@@ -33,3 +36,56 @@ def test_collect_cards_recursive():
     mod.collect_cards(payload, out)
     assert len(out) == 1
     assert out[0]["title"] == "A"
+
+
+class FakePage:
+    def __init__(self, responses):
+        self.responses = list(responses)
+        self.goto_calls = []
+        self.waits = []
+
+    async def evaluate(self, _script, _url):
+        response = self.responses.pop(0)
+        if isinstance(response, Exception):
+            raise response
+        return response
+
+    async def wait_for_timeout(self, ms):
+        self.waits.append(ms)
+
+    async def goto(self, url, **_kwargs):
+        self.goto_calls.append(url)
+
+
+def test_non_json_recovery_reopens_channel_once():
+    page = FakePage([
+        {"status": 200, "text": "<html>captcha</html>"},
+        {"status": 200, "text": '{"ok": true}'},
+    ])
+    result = asyncio.run(
+        mod.page_json_fetch(
+            page,
+            "https://dzen.ru/api/test",
+            recovery_url="https://dzen.ru/worldlord",
+            retries=1,
+            recovery_pause_ms=10,
+        )
+    )
+    assert result == {"ok": True}
+    assert page.goto_calls == ["https://dzen.ru/worldlord"]
+
+
+def test_403_is_not_bypassed_or_retried():
+    page = FakePage([
+        {"status": 403, "text": "<html>forbidden</html>"},
+    ])
+    with pytest.raises(RuntimeError, match="HTTP 403"):
+        asyncio.run(
+            mod.page_json_fetch(
+                page,
+                "https://dzen.ru/api/test",
+                recovery_url="https://dzen.ru/worldlord",
+                retries=1,
+            )
+        )
+    assert page.goto_calls == []
