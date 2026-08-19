@@ -105,38 +105,76 @@ def collect_cards(node: Any, out: list[dict[str, Any]], depth: int = 0) -> None:
             collect_cards(value, out, depth + 1)
 
 
-async def page_json_fetch(page, url: str) -> dict[str, Any]:
-    result = await page.evaluate(
-        """async (url) => {
-            const r = await fetch(url, {
-                credentials: 'include',
-                headers: {accept: 'application/json'}
-            });
-            const text = await r.text();
-            return {
-                status: r.status,
-                finalUrl: r.url,
-                contentType: r.headers.get('content-type') || '',
-                text
-            };
-        }""",
-        url,
-    )
+async def page_json_fetch(
+    page,
+    url: str,
+    *,
+    recovery_url: str | None = None,
+    retries: int = 1,
+    recovery_pause_ms: int = 1200,
+) -> dict[str, Any]:
+    """Fetch JSON from Dzen page context with the source RUNBOOK recovery.
 
-    text = result["text"]
-    if result["status"] != 200:
-        raise RuntimeError(f"HTTP {result['status']} при запросе {url}")
+    The original notes recommend a pause + navigation back to the channel when
+    the page loses dzen.ru origin (about:blank / Failed to fetch) or the endpoint
+    returns HTML instead of JSON (captcha/redirect). This is a bounded retry, not
+    a CAPTCHA solver or HTTP-status bypass.
+    """
+    last_error: Exception | None = None
 
-    if not text.lstrip().startswith("{"):
-        raise RuntimeError(
-            "Дзен вернул не JSON. Возможны CAPTCHA, редирект или защита. "
-            "Сбор остановлен без попыток обхода."
+    for attempt in range(retries + 1):
+        try:
+            result = await page.evaluate(
+                """async (url) => {
+                    const r = await fetch(url, {
+                        credentials: 'include',
+                        headers: {accept: 'application/json'}
+                    });
+                    const text = await r.text();
+                    return {
+                        status: r.status,
+                        finalUrl: r.url,
+                        contentType: r.headers.get('content-type') || '',
+                        text
+                    };
+                }""",
+                url,
+            )
+        except Exception as exc:
+            last_error = RuntimeError(f"fetch failed: {exc}")
+        else:
+            text = result["text"]
+            status = int(result["status"])
+
+            # В исходном RUNBOOK не было обхода 403: HTTP-ошибки не маскируем.
+            if status != 200:
+                raise RuntimeError(f"HTTP {status} при запросе {url}")
+
+            if text.lstrip().startswith("{"):
+                try:
+                    return json.loads(text)
+                except json.JSONDecodeError as exc:
+                    raise RuntimeError("Дзен вернул некорректный JSON") from exc
+
+            last_error = RuntimeError(
+                f"non-JSON (captcha/redirect), status {status}"
+            )
+
+        if attempt >= retries or not recovery_url:
+            break
+
+        print(
+            "  WARN: потерян origin или получен non-JSON; "
+            "пауза, повторная навигация на канал и один повтор запроса...",
+            file=sys.stderr,
         )
+        await page.wait_for_timeout(recovery_pause_ms)
+        await page.goto(recovery_url, wait_until="domcontentloaded", timeout=45_000)
+        await page.wait_for_timeout(max(400, recovery_pause_ms // 2))
 
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError as exc:
-        raise RuntimeError("Дзен вернул некорректный JSON") from exc
+    if last_error is not None:
+        raise last_error
+    raise RuntimeError("Не удалось получить JSON Дзена")
 
 
 def card_url(card: dict[str, Any]) -> str:
@@ -160,7 +198,7 @@ async def collect_channel(page, slug: str, *, days: int, max_pages: int, delay_m
         f"{EXPORT_URL}?country_code=ru&lang=ru&clid=300"
         f"&referrer_place=more&channel_name={slug}"
     )
-    exp = await page_json_fetch(page, export_url)
+    exp = await page_json_fetch(page, export_url, recovery_url=channel_url)
     article_tab = next(
         (tab for tab in (exp.get("tabs") or []) if tab.get("id") == "article"),
         None,
@@ -173,7 +211,7 @@ async def collect_channel(page, slug: str, *, days: int, max_pages: int, delay_m
         if not link:
             break
 
-        payload = await page_json_fetch(page, link)
+        payload = await page_json_fetch(page, link, recovery_url=channel_url)
         cards: list[dict[str, Any]] = []
         collect_cards(payload.get("items"), cards)
         if not cards:
@@ -218,6 +256,7 @@ async def collect_channel(page, slug: str, *, days: int, max_pages: int, delay_m
         if not link:
             break
 
+        # Если текущая страница целиком старая, прекращаем пагинацию.
         if not any_recent and newest_on_page is not None and newest_on_page < cutoff:
             break
 
