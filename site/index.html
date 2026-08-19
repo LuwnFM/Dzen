@@ -49,7 +49,7 @@
         <a class="button ghost" href="./downloads/dzen_collect_template.py" download>Чистый шаблон</a>
       </div>
 
-      <details><summary>Что произойдёт локально?</summary><p>Комплект содержит Python-скрипт и лаунчеры. Windows-лаунчер создаёт отдельное <code>.venv</code>, ставит Playwright и Chromium, после чего запускает сбор. Скрипт открывает публичные страницы каналов и обращается к JSON из контекста <code>dzen.ru</code>. При CAPTCHA/403/не-JSON он останавливается без обхода защиты.</p></details>
+      <details><summary>Что произойдёт локально?</summary><p>Комплект содержит Python-скрипт и лаунчеры. Windows-лаунчер создаёт отдельное <code>.venv</code>, ставит Playwright и Chromium, после чего запускает сбор. Скрипт открывает публичные страницы каналов и обращается к JSON из контекста <code>dzen.ru</code>. Если теряется origin или вместо JSON приходит HTML (в том числе возможная CAPTCHA/redirect), выполняется восстановление из исходного RUNBOOK: пауза, повторная навигация на канал и один повтор запроса. HTTP 403 и другие явные HTTP-ограничения не обходятся.</p></details>
     </section>
 
     <section class="panel" id="analysis">
