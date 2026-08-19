@@ -26,12 +26,25 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
       - name: Configure Pages
+        id: configure
+        continue-on-error: true
         uses: actions/configure-pages@v5
+
       - name: Upload site artifact
+        if: steps.configure.outcome == 'success'
         uses: actions/upload-pages-artifact@v4
         with:
           path: site
+
       - name: Deploy
+        if: steps.configure.outcome == 'success'
         id: deployment
         uses: actions/deploy-pages@v4
+
+      - name: Pages not enabled yet
+        if: steps.configure.outcome != 'success'
+        run: |
+          echo "GitHub Pages is not configured for this repository yet."
+          echo "Open Settings -> Pages, choose GitHub Actions as the source, then re-run this workflow."
